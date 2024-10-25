@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boring Game</title>
+    <style>
+        #cards-container {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+        }
+        .card {
+            width: 90px;
+            height: 150px;
+            padding: 20px;
+            border: 1px solid #000;
+            cursor: move;
+            display: inline-block;
+            font-size: 55px;
+            text-align: center;
+            line-height: 150px;
+        }
+        .card:hover {
+            cursor: pointer;
+        }
+        .card:active {
+            cursor: grabbing;
+        }
+        .step {
+            display: flex;
+            margin-top: 10px;
+            gap: 10px;
+        }
+        .step-card {
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #000;
+            cursor: default;
+        }
+        .success-highlight {
+            background-color: lightgreen;  /* 成功 */
+        }
+        .error-highlight {
+            background-color: lightcoral;  /* 錯誤 */
+        }
+        .highlight {
+            background-color: lightblue;
+        }
+        #message {
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 45px;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="font-size: 60px;">氣泡排序 排數字 (小到大)</h1>
+    <h2>要進行比較並交換的兩張卡牌，請將一張卡牌拖曳到欲交換的卡牌上</h2>
+    <h2>若不需交換，則請點選您想比較的兩張卡牌</h2>
+
+    <div id="user-moves"></div>
+    <div id="cards-container" ondrop="drop(event)" ondragover="allowDrop(event)">
+        {% for card in hand %}
+            <div class="card" draggable="true" ondragstart="drag(event)">
+                <input type="hidden" name="cards" value="{{ card }}">
+                {{ card }}
+            </div>
+        {% endfor %}
+    </div>
+    
+    <div id="message"></div>
+
+    <script>
+        //預設
+        let lastMovedCards = [];
+        let isDropped = false;  // 標誌，追蹤是否發生了 drop 操作
+        let lastcardchangecolorYN = false; //最後一張卡顏色
+        let round=1; //回合
+
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drag(event) {
+            event.dataTransfer.setData("text", event.target.innerHTML);
+            event.target.classList.add('dragging');
+            isDropped = false;  // 重置標誌
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            var data = event.dataTransfer.getData("text");
+            var cardsContainer = document.getElementById("cards-container");
+            var draggedCard = Array.from(cardsContainer.children).find(card => card.innerHTML === data);
+            var targetCard = event.target;
+
+            if (targetCard.classList.contains("card") && targetCard !== draggedCard) {
+                // 交換卡片
+                var temp = targetCard.innerHTML;
+                targetCard.innerHTML = draggedCard.innerHTML;
+                draggedCard.innerHTML = temp;
+
+                // 記錄最後移動的卡牌
+                lastMovedCards.push([draggedCard.innerText.trim(), targetCard.innerText.trim()]);
+
+                // 自動檢查排序狀態
+                checkSortStatus();  // 這裡呼叫檢查排序的函數
+            }
+        }
+
+        //check two cards
+        let selectedCards = [];
+        document.querySelectorAll('.card').forEach(card => {
+            card.addEventListener('click', function() {
+                if (selectedCards.length < 2 && !selectedCards.includes(card)) {
+                    selectedCards.push(card.innerText);
+                    if (selectedCards.length === 2) {
+                        checkSortStatus(); //檢查選擇
+                        lastMovedCards.push(selectedCards);
+                        selectedCards = [];
+                    }
+                }
+            });
+        });
+
+        function checkSortStatus() {
+            var currentHand = Array.from(document.querySelectorAll('.card'))
+                .slice(-4)
+                .map(card => card.textContent.trim());
+            fetch('/check_sort', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ hand: currentHand })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('message').innerText = data.result;
+                //lastcardchangecolorYN = false;
+                updateUserMoves(data.user_moves, data.current_step, data.happyending, data.atlast_answer, data.steps_items);
+                console.log("data",data)
+                
+            });
+        }
+
+        function updateUserMoves(userMoves, current_step, happyending, atlast_answer, steps_items) {
+            const movesContainer = document.getElementById('user-moves');
+            movesContainer.innerHTML = '';
+
+            userMoves.forEach((move, index) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'step';
+
+                move.cards.forEach((card, cardIndex) => {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = 'card step-card';
+                    cardDiv.textContent = card;
+
+                    // 只有對選擇兩張卡片，判斷是否選錯張
+                    let num = 0
+                    for (let i in steps_items[current_step-1]){
+                        if (lastMovedCards[current_step-1].includes(steps_items[current_step-1][i])){
+                            num++;
+                        }
+                    }
+                    if (num != 2 && current_step-1 == index){
+                        move.correct = false ; 
+                        document.getElementById('message').innerText = "步驟錯誤，去重來！";
+                    }
+
+                    // 只有對選擇的兩張卡片進行變色
+                    if (lastMovedCards[index] && lastMovedCards[index].includes(card)) {
+                        
+                        cardDiv.classList.add(move.correct ? 'success-highlight' : 'error-highlight');
+                    }
+                    
+                    console.log("add last color: ",current_step, index,cardIndex)
+                    if (lastcardchangecolorYN) {
+                        if (current_step >=3 && index>=3 && cardIndex>=3){
+                            cardDiv.classList.add('highlight');
+                            cardDiv.style.pointerEvents = 'none';
+                        }
+                        if (current_step >=5 && index>=5 && cardIndex>=2){
+                            cardDiv.classList.add('highlight'); 
+                            cardDiv.style.pointerEvents = 'none';
+                        }
+                    }
+                    stepDiv.appendChild(cardDiv);
+                });
+
+                let round = 0;
+                if ([0,1,2].includes(index)){
+                    round = 1;
+                }else if ([3,4].includes(index)){
+                    round = 2;
+                }else if ([5].includes(index)){
+                    round = 3;
+                }
+                
+                const statusDiv = document.createElement('span');
+                const statusDiv2 = document.createElement('span');
+                statusDiv.textContent = move.correct ? "此行正確" : "此行錯誤";
+                statusDiv.style.fontSize = '60px';
+                stepDiv.appendChild(statusDiv);
+                statusDiv2.textContent = "第" + round + "回合";
+                statusDiv2.style.fontSize = '20px';
+                stepDiv.appendChild(statusDiv2);
+                movesContainer.appendChild(stepDiv);
+
+            });
+
+            if (current_step){
+                let lastcardchangecolorindex = []
+                let t = false
+
+                for(let i= atlast_answer.length-1; i>1; i--){
+                    lastcardchangecolorindex.push(i);
+                    let num = 0
+                    for (let i of lastcardchangecolorindex){ num += i }
+                    if (current_step >= num){
+                        console.log("next 3 or 5 show",current_step)
+                        lastcardchangecolorYN = true ;
+                        t = true ;
+
+                        for (let j of lastcardchangecolorindex){
+                            document.getElementById("cards-container").children[j].classList.add('highlight'); // 將最後一張卡片變色
+                            document.getElementById("cards-container").children[j].style.pointerEvents = 'none'; // 禁止點擊最後一張卡片
+                        }
+                        
+                    }
+                }
+                if (t == false){
+                    lastcardchangecolorYN = false ;
+                }
+            }
+            
+            const lastMove = userMoves[userMoves.length - 1];
+            if (lastMove && (!lastMove.correct || happyending)) {
+                document.getElementById('cards-container').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

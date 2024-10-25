@@ -1,0 +1,41 @@
+/* styles.css */
+
+
+
+
+
+
+.card {
+    display: inline-block;
+    width: 100px;
+    height: 150px;
+    margin: 10px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    text-align: center;
+    line-height: 150px;
+    font-size: 18px;
+    /*cursor: move;*/
+     cursor: grab; /* 修改為 grab */
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.card:active {
+    cursor: grabbing; /* 當按下時改為 grabbing */
+}
+
+.card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+#message {
+    font-size: 24px;
+    margin-top: 20px;
+}
+
+#cards-container {
+    display: flex;
+    flex-wrap: wrap;
+    width: auto;
+}
